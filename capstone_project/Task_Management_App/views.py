@@ -1,52 +1,55 @@
 from rest_framework import generics, permissions, filters
+from django.contrib.auth.models import User
 from .models import Task
-from .serializers import TaskSerializer
-from Task_Management_App import serializers
+from .serializers import TaskSerializer, UserSerializer
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
 
+# User Registration
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+# User Login (optional simple version)
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
+
+class LoginView(ObtainAuthToken):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        token = Token.objects.get(key=response.data['token'])
+        return Response({'token': token.key, 'user_id': token.user_id})
+
+
+# Task Views
 class TaskListCreateView(generics.ListCreateAPIView):
+    queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['due_date', 'priority']
 
     def get_queryset(self):
-        user = self.request.user
-        queryset = Task.objects.filter(user=user)
+        return Task.objects.filter(user=self.request.user)
 
-        # ✅ Filtering by status, priority, or due date
-        status = self.request.query_params.get('status')
-        priority = self.request.query_params.get('priority')
-        due_date = self.request.query_params.get('due_date')
-
-        if status:
-            queryset = queryset.filter(status=status)
-        if priority:
-            queryset = queryset.filter(priority=priority)
-        if due_date:
-            queryset = queryset.filter(due_date__date=due_date)
-
-        return queryset
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        # ✅ Only allow user to access their own tasks
-        return Task.objects.filter(user=self.request.user)
 
-
-class MarkTaskCompleteView(generics.UpdateAPIView):
-    serializer_class = TaskSerializer
+class MarkTaskCompleteView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        return Task.objects.filter(user=self.request.user)
-
-    def perform_update(self, serializer):
-        # ✅ Mark task as complete or incomplete
-        status = self.request.data.get('status')
-        if status not in ['Pending', 'Completed']:
-            raise serializers.ValidationError({"status": "Invalid status"})
-        serializer.save(status=status)
+    def post(self, request, pk):
+        try:
+            task = Task.objects.get(pk=pk, user=request.user)
+            task.is_completed = True
+            task.save()
+            return Response({"message": "Task marked as complete"}, status=status.HTTP_200_OK)
+        except Task.DoesNotExist:
+            return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)

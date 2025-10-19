@@ -2,6 +2,12 @@ from rest_framework import serializers
 from .models import Task
 from django.utils import timezone
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task._meta.get_field('user').related_model
+        fields = ['id', 'username', 'email']
+        
+
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
