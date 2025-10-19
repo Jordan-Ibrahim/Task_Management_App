@@ -1,33 +1,65 @@
-from rest_framework import generics, permissions, filters
+from rest_framework import generics, permissions, filters, status
 from django.contrib.auth.models import User
 from .models import Task
 from .serializers import TaskSerializer, UserSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
 
-# User Registration
+# --------------------------
+# USER REGISTRATION VIEW
+# --------------------------
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
+    # Allow GET for development/testing visibility
+    def get(self, request, *args, **kwargs):
+        return Response({
+            "message": "Use POST to register a new user.",
+            "example_body": {
+                "username": "new_user",
+                "email": "user@example.com",
+                "password": "strongpassword123"
+            }
+        })
 
-# User Login (optional simple version)
-from rest_framework.authtoken.models import Token
-from rest_framework.authtoken.views import ObtainAuthToken
 
+# --------------------------
+# USER LOGIN VIEW
+# --------------------------
 class LoginView(ObtainAuthToken):
+
+    # Add GET support for testing
+    def get(self, request, *args, **kwargs):
+        return Response({
+            "message": "Use POST to log in and receive a token.",
+            "example_body": {
+                "username": "existing_user",
+                "password": "userpassword"
+            }
+        })
+
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         token = Token.objects.get(key=response.data['token'])
-        return Response({'token': token.key, 'user_id': token.user_id})
+        return Response({
+            'token': token.key,
+            'user_id': token.user_id,
+            'username': token.user.username
+        })
 
 
-# Task Views
+# --------------------------
+# TASK LIST + CREATE VIEW
+# --------------------------
 class TaskListCreateView(generics.ListCreateAPIView):
-    queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'description', 'priority', 'status']
+    ordering_fields = ['due_date', 'priority']
 
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
@@ -36,14 +68,29 @@ class TaskListCreateView(generics.ListCreateAPIView):
         serializer.save(user=self.request.user)
 
 
+# --------------------------
+# TASK DETAIL VIEW
+# --------------------------
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return Task.objects.filter(user=self.request.user)
 
+
+# --------------------------
+# MARK TASK COMPLETE VIEW
+# --------------------------
 class MarkTaskCompleteView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        """Development only: shows usage example"""
+        return Response({
+            "message": "Use POST to mark a task as complete.",
+            "example_url": f"/api/tasks/{pk}/complete/"
+        })
 
     def post(self, request, pk):
         try:
