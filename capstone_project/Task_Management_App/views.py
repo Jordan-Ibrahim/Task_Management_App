@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions, filters, status
 from django.contrib.auth.models import User
-from .models import Task, User
+from django.contrib.auth import authenticate
+from .models import Task
 from .serializers import TaskSerializer, UserSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,47 +16,59 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
-    # Allow GET for development/testing visibility
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        
+        # Create or get token for the new user
+        token, created = Token.objects.get_or_create(user=user)
+
         return Response({
             "message": "Welcome! Registration Successful.",
-            "example_body": {
-                "username": "new_user",
-                "email": "user@example.com",
-                "password": "strongpassword123"
-            }
-        })
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            },
+            "token": token.key,  # 👈 immediately return token
+        }, status=status.HTTP_201_CREATED)
+
 
 
 # --------------------------
 # USER LOGIN VIEW
 # --------------------------
-class LoginView(ObtainAuthToken):
-
-    # Add POST support for testing
-    def post(self, request, *args, **kwargs):
-        return Response({
-            "message": "Login Successful!",
-            "example_body": {
-                "username": "existing_user",
-                "password": "userpassword"
-            }
-        })
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        token = Token.objects.get(key=response.data['token'])
-        return Response({
-            'token': token.key,
-            'user_id': token.user_id,
-            'username': token.user.username
-        })
+        username = request.data.get('username')
+        password = request.data.get('password')
 
+        if not username or not password:
+            return Response(
+                {"error": "Please provide both username and password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = authenticate(username=username, password=password)
+
+        if not user:
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response({
+            "message": "Login successful",
+            "token": token.key,
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+        }, status=status.HTTP_200_OK)
 
 # --------------------------
 # TASK LIST + CREATE VIEW

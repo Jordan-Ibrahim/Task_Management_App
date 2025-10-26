@@ -1,11 +1,22 @@
 from rest_framework import serializers
-from .models import Task
+from .models import Task, User
 from django.utils import timezone
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Task._meta.get_field('user').related_model
-        fields = ['id', 'username', 'email']
+        model = User
+        fields = ['id', 'username', 'email', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data.get('email', ''),
+            password=validated_data['password']
+        )
+        return user
         
 
 class TaskSerializer(serializers.ModelSerializer):
