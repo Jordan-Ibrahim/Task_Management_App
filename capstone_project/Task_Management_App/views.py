@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions, filters, status
 from django.contrib.auth.models import User
-from .models import Task
+from .models import Task, User
 from .serializers import TaskSerializer, UserSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -23,7 +23,7 @@ class RegisterView(generics.CreateAPIView):
 
         
         return Response({
-            "message": "Use POST to register a new user.",
+            "message": "Welcome! Registration Successful.",
             "example_body": {
                 "username": "new_user",
                 "email": "user@example.com",
@@ -37,10 +37,10 @@ class RegisterView(generics.CreateAPIView):
 # --------------------------
 class LoginView(ObtainAuthToken):
 
-    # Add GET support for testing
-    def get(self, request, *args, **kwargs):
+    # Add POST support for testing
+    def post(self, request, *args, **kwargs):
         return Response({
-            "message": "Use POST to log in and receive a token.",
+            "message": "Login Successful!",
             "example_body": {
                 "username": "existing_user",
                 "password": "userpassword"
