@@ -13,9 +13,15 @@ from rest_framework.authtoken.views import ObtainAuthToken
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
 
     # Allow GET for development/testing visibility
-    def get(self, request, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        
         return Response({
             "message": "Use POST to register a new user.",
             "example_body": {
